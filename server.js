@@ -1,20 +1,38 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const initSqlJs = require('sql.js');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // 中间件
 app.use(express.json());
 app.use(express.static(path.join(__dirname))); // 提供前端文件
 
-// ========== 数据库初始化 ==========
+// ========== 数据库初始化（文件持久化） ==========
 let db;
+const DB_PATH = path.join(__dirname, 'data.db');
+
+// 保存数据库到文件
+function saveDB() {
+  const data = db.export();
+  const buffer = Buffer.from(data);
+  fs.writeFileSync(DB_PATH, buffer);
+}
 
 async function initDB() {
   const SQL = await initSqlJs();
-  db = new SQL.Database();
+
+  // 如果数据库文件存在，从文件加载；否则新建
+  if (fs.existsSync(DB_PATH)) {
+    const fileBuffer = fs.readFileSync(DB_PATH);
+    db = new SQL.Database(fileBuffer);
+    console.log('✅ 从文件加载数据库:', DB_PATH);
+  } else {
+    db = new SQL.Database();
+    console.log('✅ 创建新数据库');
+  }
 
   // 创建用户表
   db.run(`
@@ -39,6 +57,7 @@ async function initDB() {
     )
   `);
 
+  saveDB(); // 确保表结构写入文件
   console.log('✅ 数据库初始化完成');
 }
 
@@ -77,6 +96,7 @@ app.post('/api/register', (req, res) => {
 
   try {
     db.run('INSERT INTO users (username, password) VALUES (?, ?)', [username, password]);
+    saveDB();
     const user = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
     const token = generateToken();
     sessions[token] = user;
@@ -142,6 +162,7 @@ app.post('/api/tasks', auth, (req, res) => {
     'INSERT INTO tasks (user_id, text, priority) VALUES (?, ?, ?)',
     [req.userId, text.trim(), priority || 'medium']
   );
+  saveDB();
 
   const result = db.exec('SELECT last_insert_rowid() as id');
   const newId = result[0].values[0][0];
@@ -177,6 +198,7 @@ app.put('/api/tasks/:id', auth, (req, res) => {
 
   const currentDone = check[0].values[0][1];
   db.run('UPDATE tasks SET done = ? WHERE id = ?', [currentDone ? 0 : 1, id]);
+  saveDB();
 
   res.json({ message: '更新成功', done: !currentDone });
 });
@@ -195,6 +217,7 @@ app.delete('/api/tasks/:id', auth, (req, res) => {
   }
 
   db.run('DELETE FROM tasks WHERE id = ?', [id]);
+  saveDB();
   res.json({ message: '删除成功' });
 });
 
