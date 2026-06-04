@@ -158,21 +158,26 @@ app.post('/api/tasks', auth, (req, res) => {
     return res.status(400).json({ error: '任务内容不能为空' });
   }
 
+  const taskText = text.trim();
+  const taskPriority = priority || 'medium';
+
   db.run(
     'INSERT INTO tasks (user_id, text, priority) VALUES (?, ?, ?)',
-    [req.userId, text.trim(), priority || 'medium']
+    [req.userId, taskText, taskPriority]
   );
   saveDB();
 
-  const result = db.exec('SELECT last_insert_rowid() as id');
-  const newId = result[0].values[0][0];
-
-  const task = db.exec(
-    'SELECT id, text, priority, done, created_at FROM tasks WHERE id = ?',
-    [newId]
+  // 直接查询刚插入的任务（取最新一条）
+  const result = db.exec(
+    'SELECT id, text, priority, done, created_at FROM tasks WHERE user_id = ? AND text = ? ORDER BY id DESC LIMIT 1',
+    [req.userId, taskText]
   );
 
-  const row = task[0].values[0];
+  if (!result.length || !result[0].values.length) {
+    return res.status(500).json({ error: '添加任务失败' });
+  }
+
+  const row = result[0].values[0];
   res.json({
     id: row[0],
     text: row[1],
