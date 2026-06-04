@@ -157,7 +157,13 @@ const app = createApp({
     // ==================== 工具函数 ====================
     function refreshIcons() {
       nextTick(() => {
-        if (window.lucide) lucide.createIcons();
+        try {
+          if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+          }
+        } catch (e) {
+          // lucide 尚未加载完成，忽略
+        }
       });
     }
 
@@ -170,9 +176,14 @@ const app = createApp({
         token.value = savedToken;
         user.value = { username: savedUser };
         try {
-          await loadTasks();
+          tasks.value = await api('/tasks');
         } catch {
-          logout();
+          // token 失效（服务器重启等），清除登录态
+          token.value = null;
+          user.value = null;
+          tasks.value = [];
+          localStorage.removeItem('mysaas_token');
+          localStorage.removeItem('mysaas_username');
         }
       }
 
@@ -196,7 +207,7 @@ const app = createApp({
       :current-page="currentPage"
       :vol="vol"
       :today="today"
-      @navigate="currentPage = $event; $nextTick(() => { if (window.lucide) lucide.createIcons() })"
+      @navigate="currentPage = $event; refreshIcons()"
       @show-auth="showAuth = true"
       @logout="logout" />
 
@@ -213,7 +224,7 @@ const app = createApp({
       :stats="stats"
       :vol="vol"
       @show-auth="showAuth = true"
-      @navigate="currentPage = $event; $nextTick(() => { if (window.lucide) lucide.createIcons() })" />
+      @navigate="currentPage = $event; refreshIcons()" />
 
     <task-page
       v-if="currentPage === 'tasks'"

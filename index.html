@@ -20,7 +20,9 @@
 
   <!-- 依赖 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"
+          onload="window.__lucideReady = true;"
+          onerror="console.warn('Lucide CDN 加载失败，图标可能无法显示')"></script>
 
   <!-- 应用入口 -->
   <script type="module" src="src/app.js"></script>
